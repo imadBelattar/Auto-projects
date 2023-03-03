@@ -1,2 +1,2 @@
-# Auto-projects
-For creating projects for personal usage and learning from them during the building and the development, kind of entertainment and auto educational purposes.
+# OpenAI API based telegram bot
+Building a telegram bot to answer users questions using the OpenAI API easy for use and access as well.
