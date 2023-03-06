@@ -12,7 +12,9 @@ import threading
 
 GRAPHITE_HOST = "localhost"
 GRAPHITE_PORT = 2003  # replace with the port used by your Graphite container
+counter_name = "test_bot_requests_count"
 requests_counter = 0
+responses_counter = 0
 responses_time = 0
 time_period = 60
 graphyte.init(GRAPHITE_HOST, GRAPHITE_PORT)
@@ -31,7 +33,7 @@ def start(update, context):
     response_start_time = time.time()
     global requests_counter
     global responses_time
-
+    global responses_counter
     global requests_counter
     # Increment the requests counter for every message received
     requests_counter += 1
@@ -39,7 +41,7 @@ def start(update, context):
         "Hi, how can I assist you ! (if you want answers in arabic, ask like this 'ar your question..')"
     )
     response_end_time = time.time()
-
+    responses_counter += 1
     responses_time += response_end_time - response_start_time
 
 
@@ -47,7 +49,7 @@ def help(update, context):
     response_start_time = time.time()
     global requests_counter
     global responses_time
-
+    global responses_counter
     global forHelp
     # Increment the requests counter for every message received
     requests_counter += 1
@@ -57,7 +59,7 @@ def help(update, context):
     else:
         update.message.reply_text("not again, you can do better than that")
     response_end_time = time.time()
-
+    responses_counter += 1
     responses_time += response_end_time - response_start_time
 
 
@@ -80,14 +82,20 @@ def send_video(name, chat_id, bot_token):
 def send_metrics():
     global time_period
     global requests_counter
+    global responses_counter
     global responses_time
     while True:
         # send the response time average metric for every request sent during 'time_period' seconds to the graphite server (carbon)
+        if responses_counter > 0:
+            responses_average = responses_time / responses_counter
+        else:
+            responses_average = 0
         # 2 responses metric
         graphyte.send(
             "metrics_ChatWithMe-telegram-bot/Responses_average",
-            responses_time,
+            responses_average,
         )
+        responses_counter = 0
         responses_time = 0
         # Send the received requests number during 'time_period' metric to the graphite server (carbon)
         # 1 requests metric
@@ -104,7 +112,7 @@ def send_metrics():
 # the responsible function for handling incoming requests
 def handle_message(update, context):
     global requests_counter
-
+    global responses_counter
     global responses_time
     # Increment the requests counter for every message received
     requests_counter += 1
@@ -124,12 +132,9 @@ def handle_message(update, context):
             answer = send_video(message, update.message.chat_id, Token)
             update.message.reply_text(answer)
             response_end_time = time.time()
-            print(
-                f"   processed response time : {response_end_time - response_start_time} seconds"
-            )
-
+            responses_counter += 1
             responses_time += response_end_time - response_start_time
-
+            print(f"   processed response time : {responses_time} seconds")
             return
 
         # test if the user is requesting an image or a texted response
@@ -152,11 +157,9 @@ def handle_message(update, context):
             # Send the image to the user
             update.message.reply_photo(open(image_path, "rb"))
             response_end_time = time.time()
-            print(
-                f"   processed response time : {response_end_time - response_start_time} seconds"
-            )
+            responses_counter += 1
             responses_time += response_end_time - response_start_time
-
+            print(f"   processed response time : {responses_time} seconds")
             return
         # check if the intended answer would be in arabic by checking the request question
         if message.startswith("ar "):
@@ -191,12 +194,9 @@ def handle_message(update, context):
             # send the audio file to the user
             context.bot.send_voice(chat_id=user_id, voice=audio_file)
             response_end_time = time.time()
-            print(
-                f"   processed response time : {response_end_time - response_start_time} seconds"
-            )
-
+            responses_counter += 1
             responses_time += response_end_time - response_start_time
-
+            print(f"   processed response time : {responses_time} seconds")
             return
         else:
             # Call the OpenAI Playground API to get a response
@@ -218,9 +218,7 @@ def handle_message(update, context):
         print(f"   ******  answer is : {answer}")
         update.message.reply_text(answer)
         response_end_time = time.time()
-        print(
-            f"   processed response time : {response_end_time - response_start_time} seconds"
-        )
+        responses_counter += 1
         responses_time += response_end_time - response_start_time
     else:
         if message == password:
@@ -229,21 +227,16 @@ def handle_message(update, context):
             #  print(f"{answer}")
             update.message.reply_text(answer)
             response_end_time = time.time()
-            print(
-                f"   processed response time : {response_end_time - response_start_time} seconds"
-            )
-
+            responses_counter += 1
             responses_time += response_end_time - response_start_time
         else:
             answer = f"Password is required to start the conversation :"
             # print(f"{answer}")
             update.message.reply_text(answer)
             response_end_time = time.time()
-            print(
-                f"   processed response time : {response_end_time - response_start_time} seconds"
-            )
-
+            responses_counter += 1
             responses_time += response_end_time - response_start_time
+    print(f"   processed response time : {responses_time} seconds")
 
 
 updater = telegram.ext.Updater(Token, use_context=True)
