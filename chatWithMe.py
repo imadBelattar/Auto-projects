@@ -9,22 +9,28 @@ from youtube_search import YoutubeSearch
 import graphyte
 import time
 import threading
+import psutil
 
 GRAPHITE_HOST = "localhost"
 GRAPHITE_PORT = 2003  # replace with the port used by your Graphite container
 requests_counter = 0
 responses_time = 0
-time_period = 60
+time_period = 5  # (S) # this time period represents the period between sending the metrics to graphite server in seconds.
+process = psutil.Process()
 graphyte.init(GRAPHITE_HOST, GRAPHITE_PORT)
+lpISIR_users = {}
 
 
 # allowing the owner of the bot to access the services without using the password
-authentified_users = {1631515390: "owner"}
+# authentified_users = {1631515390: "owner"}
+authentified_users = {}
 password = "graphite"
 forHelp = 0
 Token = os.environ["telegram-ChatWMe-bot_Token"]
 openai.api_key = os.environ["OPENAI_API_KEY"]
-print(f".......Running ..........ChatWithMe-bot......... by Imad Belattar.")
+print(
+    f".......Running ..........ChatWithMe-bot......... by Graphite Team LP ISIR EST SAFI."
+)
 
 
 def start(update, context):
@@ -57,6 +63,9 @@ def help(update, context):
     else:
         update.message.reply_text("not again, you can do better than that")
     response_end_time = time.time()
+    print(
+        f"   processed response time : {response_end_time - response_start_time} seconds"
+    )
 
     responses_time += response_end_time - response_start_time
 
@@ -81,8 +90,22 @@ def send_metrics():
     global time_period
     global requests_counter
     global responses_time
+    global process
+    global lpISIR_users
     while True:
-        # send the response time average metric for every request sent during 'time_period' seconds to the graphite server (carbon)
+        cpu_usage = process.cpu_percent(interval=0)
+        graphyte.send(
+            "bot-server-cpu-usage/CPU_usage_Metric",
+            cpu_usage,
+        )
+        for student in lpISIR_users:
+            lpISIR_users[student].user_metrics()
+        # Wait for 'time_period' seconds before sending the next metrics
+        time.sleep(time_period)
+
+
+"""
+        # send the total response time  metric for all the requests sent during 'time_period' seconds to the graphite server (carbon)
         # 2 responses metric
         graphyte.send(
             "metrics_ChatWithMe-telegram-bot/Responses_average",
@@ -96,29 +119,65 @@ def send_metrics():
             requests_counter,
         )
         requests_counter = 0
+"""
 
-        # Wait for 'time_period' seconds before sending the next metrics
-        time.sleep(time_period)
+
+def add_user_to_students(id_user, full_name):
+    global lpISIR_users
+    if id_user not in lpISIR_users:
+        new_user = User(id_user=id_user, full_name=full_name)
+        lpISIR_users[id_user] = new_user
 
 
 # the responsible function for handling incoming requests
 def handle_message(update, context):
     global requests_counter
+    global lpISIR_users
 
     global responses_time
     # Increment the requests counter for every message received
     requests_counter += 1
     response_start_time = time.time()
     # Get the necessary informations
+
     global authentified_users
     global password
-
     user_id = update.effective_user.id
     UserName = update.effective_user.full_name
+    # increment the requests number of the user sending a request, only if the user is already authentified
+    if user_id in lpISIR_users:
+        lpISIR_users[user_id].requests_counter += 1
+    print()
+    if len(lpISIR_users) > 0:
+        print(
+            f"     ____________________________________ 📶 📶 📶 Connected Users ({len(lpISIR_users)}) 📶 📶 📶 ____________________________________"
+        )
+    else:
+        print(
+            "     ____________________________________ 📶 📶 📶 Connected Users 📶 📶 📶 ____________________________________"
+        )
+    for key, value in lpISIR_users.items():
+        print(
+            f"    id: {key}, name: {value.full_name}   *********** with {value.requests_counter} request(s) "
+        )
+
     # timestamp = time.time()
     message = update.message.text.lower()
 
-    if user_id in authentified_users:
+    if user_id in lpISIR_users:
+        if message == "hello" or message == "hi":
+            update.message.reply_text(
+                "hello Sir, if you want something just let me know !"
+            )
+            response_end_time = time.time()
+            print(
+                f"   processed response time : {response_end_time - response_start_time} seconds"
+            )
+            lpISIR_users[user_id].responses_time += (
+                response_end_time - response_start_time
+            )
+            responses_time += response_end_time - response_start_time
+            return
         if message.startswith("vid "):
             message = message.replace("vid ", "")
             answer = send_video(message, update.message.chat_id, Token)
@@ -127,13 +186,28 @@ def handle_message(update, context):
             print(
                 f"   processed response time : {response_end_time - response_start_time} seconds"
             )
-
+            lpISIR_users[user_id].responses_time += (
+                response_end_time - response_start_time
+            )
             responses_time += response_end_time - response_start_time
 
             return
 
         # test if the user is requesting an image or a texted response
         if message.startswith("image "):
+            update.message.reply_text(
+                "This feature isn't available today! today is for studying Graphite"
+            )
+            response_end_time = time.time()
+            print(
+                f"   processed response time : {response_end_time - response_start_time} seconds"
+            )
+            lpISIR_users[user_id].responses_time += (
+                response_end_time - response_start_time
+            )
+            responses_time += response_end_time - response_start_time
+
+            return
             message = message.replace("image ", "")
             prompt = f"Generate an image of {message}"
             response = openai.Image.create(
@@ -151,13 +225,6 @@ def handle_message(update, context):
                 f.write(requests.get(image_url).content)
             # Send the image to the user
             update.message.reply_photo(open(image_path, "rb"))
-            response_end_time = time.time()
-            print(
-                f"   processed response time : {response_end_time - response_start_time} seconds"
-            )
-            responses_time += response_end_time - response_start_time
-
-            return
         # check if the intended answer would be in arabic by checking the request question
         if message.startswith("ar "):
             message = message.replace("ar ", "")
@@ -174,7 +241,7 @@ def handle_message(update, context):
             response = openai.Completion.create(
                 engine="text-davinci-003",
                 prompt=message,
-                max_tokens=256,
+                max_tokens=128,
                 top_p=1,
                 n=1,
                 stop=None,
@@ -194,7 +261,9 @@ def handle_message(update, context):
             print(
                 f"   processed response time : {response_end_time - response_start_time} seconds"
             )
-
+            lpISIR_users[user_id].responses_time += (
+                response_end_time - response_start_time
+            )
             responses_time += response_end_time - response_start_time
 
             return
@@ -203,7 +272,7 @@ def handle_message(update, context):
             response = openai.Completion.create(
                 engine="text-davinci-003",
                 prompt=request,
-                max_tokens=256,
+                max_tokens=128,
                 top_p=1,
                 n=1,
                 stop=None,
@@ -221,19 +290,24 @@ def handle_message(update, context):
         print(
             f"   processed response time : {response_end_time - response_start_time} seconds"
         )
+        lpISIR_users[user_id].responses_time += response_end_time - response_start_time
         responses_time += response_end_time - response_start_time
     else:
         if message == password:
-            authentified_users[user_id] = "yes"
-            answer = f"Great! Mr. {UserName} let's begin"
-            #  print(f"{answer}")
-            update.message.reply_text(answer)
-            response_end_time = time.time()
-            print(
-                f"   processed response time : {response_end_time - response_start_time} seconds"
-            )
-
-            responses_time += response_end_time - response_start_time
+            # authentified_users[user_id] = "yes"
+            if len(lpISIR_users) <= 47:
+                add_user_to_students(id_user=user_id, full_name=UserName)
+                answer = f"Great! Mr. {lpISIR_users[user_id].full_name} let's begin the gaphite TP"
+                #  print(f"{answer}")
+                update.message.reply_text(answer)
+                response_end_time = time.time()
+                print(
+                    f"   processed response time : {response_end_time - response_start_time} seconds"
+                )
+                responses_time += response_end_time - response_start_time
+            else:
+                answer = "we have only 46 students and already connected and you're asking me to let you join!! 😏"
+                update.message.reply_text(answer)
         else:
             answer = f"Password is required to start the conversation :"
             # print(f"{answer}")
@@ -243,20 +317,16 @@ def handle_message(update, context):
                 f"   processed response time : {response_end_time - response_start_time} seconds"
             )
 
-            responses_time += response_end_time - response_start_time
-
 
 updater = telegram.ext.Updater(Token, use_context=True)
 disp = updater.dispatcher
 disp.add_handler(telegram.ext.CommandHandler("start", start))
 disp.add_handler(telegram.ext.CommandHandler("help", help))
 disp.add_handler(telegram.ext.MessageHandler(telegram.ext.Filters.text, handle_message))
-# added
-# Start the metric sending thread
+# Starting..... the metric sending thread
 metric_thread = threading.Thread(target=send_metrics)
 metric_thread.daemon = True
 metric_thread.start()
-# /added
 
 updater.start_polling()
 updater.idle()

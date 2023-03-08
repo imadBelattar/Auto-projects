@@ -1,0 +1,2 @@
+testbotENV\Scripts\activate.bat
+python chatWithMe.py
