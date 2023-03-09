@@ -15,7 +15,7 @@ GRAPHITE_HOST = "localhost"
 GRAPHITE_PORT = 2003  # replace with the port used by your Graphite container
 requests_counter = 0
 responses_time = 0
-time_period = 5  # (S) # this time period represents the period between sending the metrics to graphite server in seconds.
+time_period = 10  # (S) this time period represents the period between sending the metrics to graphite server in seconds.
 process = psutil.Process()
 graphyte.init(GRAPHITE_HOST, GRAPHITE_PORT)
 lpISIR_users = {}

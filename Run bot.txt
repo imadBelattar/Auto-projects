@@ -1,2 +1,7 @@
 testbotENV\Scripts\activate.bat
+code .
 python chatWithMe.py
+
+  note :
+# if you want to push files into your remote repository 'origin' and it won't 
+# try this "git push origin --force"
