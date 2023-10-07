@@ -42,7 +42,7 @@ To use the ChatWithMe bot, follow these steps:
 2. Install the required Python libraries mentioned in the "Requirements" section using the following command:
 
    ```shell
-   pip install graphyte==1.7.1 gTTS==2.3.1 openai==0.27.0 python-telegram-bot==13.13 requests==2.28.2 youtube-search==2.1.2 psutil==5.9.4
+   pip install -r requirements.txt
 3. Set the required environment variables:
 
 - `telegram-ChatWMe-bot_Token`: Set this variable to your Telegram Bot Token.
